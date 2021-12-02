@@ -1,27 +1,34 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Day2 (day2) where
 
 import Data.Foldable (foldl')
+import Control.Lens
+import Control.Lens.TH
 
 import Part (Part (Part1, Part2))
 
-newtype Depth = Depth Int
+newtype Depth = Depth { _depth :: Int }
   deriving (Show)
+makeLenses ''Depth
 
-newtype Horizontal = Horizontal Int
+newtype Horizontal = Horizontal { _horizontal :: Int }
   deriving (Show)
+makeLenses ''Horizontal
 
-newtype Aim = Aim Int
+newtype Aim = Aim { _aim :: Int }
   deriving (Show)
+makeLenses ''Aim
 
-data Position = Position !Horizontal !Depth !Aim
+data Position = Position { _posHorizontal :: !Horizontal, _posDepth :: !Depth, _posAim ::  !Aim }
   deriving (Show)
+makeLenses ''Position
 
 data Command = Forward !Int | Down !Int | Up !Int
 
 
-applyCommand1 (Position (Horizontal h) d a) (Forward distance) = Position (Horizontal $ h + distance) d a
-applyCommand1 (Position h (Depth d) a) (Down distance) = Position h (Depth $ d + distance) a
-applyCommand1 (Position h (Depth d) a) (Up distance) = Position h (Depth $ d - distance) a
+applyCommand1 (Forward distance) = posHorizontal . horizontal %~ (+ distance)
+applyCommand1 (Down distance) = posDepth . depth +~ distance
+applyCommand1 (Up distance) = posDepth . depth -~ distance
 
 readCommand line = case words line of
                      ["forward",amount] -> Forward (read amount)
@@ -45,15 +52,14 @@ run applyCommand = do
   putStrLn . show $ h * d
 
 
-part1 = run applyCommand1
+part1 = run (flip applyCommand1)
 
-applyCommand2 (Position (Horizontal h) (Depth d) (Aim a)) (Forward distance) =
-  Position
-    (Horizontal $ h + distance)
-    (Depth $ d + a * distance)
-    (Aim a)
-applyCommand2 (Position h d (Aim a)) (Down distance) = Position h d (Aim $ a + distance)
-applyCommand2 (Position h d (Aim a)) (Up distance) = Position h d (Aim $ a - distance)
+applyCommand2 pos (Forward distance) =
+  (posHorizontal . horizontal +~ distance) $
+  (posDepth . depth +~ distance * (pos ^. (posAim . aim))) $
+  pos
+applyCommand2 pos (Down distance) = posAim . aim +~ distance $ pos
+applyCommand2 pos (Up distance) = posAim . aim -~ distance $ pos
 
 
 
