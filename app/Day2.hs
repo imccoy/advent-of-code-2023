@@ -27,6 +27,7 @@ readCommand line = case words line of
                      ["forward",amount] -> Forward (read amount)
                      ["down", amount] -> Down (read amount)
                      ["up", amount] -> Up (read amount)
+                     _ -> error $ "Unparsable line " ++ line
 
 input :: IO String
 input = readFile "inputs/day2"

@@ -4,7 +4,6 @@ import Data.Maybe
 import System.Environment (getArgs)
 import System.Exit (die)
 
-import Lib
 import Day1 (day1)
 import Day2 (day2)
 import Part (getPart, Part (Part1, Part2))
