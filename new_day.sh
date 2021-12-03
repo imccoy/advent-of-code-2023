@@ -17,3 +17,5 @@ dayNEW Part2 _ = part2
 EOF
 
 sed -i "" "s/-- NEXT DAY IMPORT/import Day$day (day$day)\n-- NEXT DAY IMPORT/;s/-- NEXT DAY CASE/\"$day\" -> Just day$day\n    -- NEXT DAY CASE/" app/main.hs
+
+curl -H "Cookie: session=$(cat .session-cookie)" https://adventofcode.com/2021/day/3/input > inputs/day$day
