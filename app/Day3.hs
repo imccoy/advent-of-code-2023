@@ -1,6 +1,7 @@
-{-# LANGUAGE LambdaCase, DeriveFunctor #-}
+{-# LANGUAGE LambdaCase, DeriveFunctor, BangPatterns #-}
 module Day3 where
 
+import Control.Monad (forM)
 import Data.Bits
 import Data.List (foldl')
 import Data.Maybe (mapMaybe)
@@ -69,14 +70,27 @@ searchFor' criteria nums0 = toInt . go . ((SearchSkip 0):) . map SearchHere $ nu
     mergeSkips (here:rest) = here:(mergeSkips rest)
     mergeSkips [] = []
 
+searchFor'' criteria nums0 = go $ zip nums0 (repeat 0)
+  where
+    go :: [([Bit], Int)] -> Int
+    go [] = error "we have gone too far"
+    go [(bits, n)] = foldl' (\n b -> 2 * n + bitToInt b) n bits
+    go nums = let (leading0s, leading1s) = foldr (\(bit:nums', n) (leading0s, leading1s) -> 
+                                                    let !n' = n * 2 + bitToInt bit
+                                                     in case bit of
+                                                          Bit0 -> ((nums', n'):leading0s, leading1s)
+                                                          Bit1 -> (leading0s, (nums', n'):leading1s)
+                                                 ) ([],[]) nums
+               in case criteria $ CountPair (length leading0s) (length leading1s) of
+                    Bit0 -> go leading0s
+                    Bit1 -> go leading1s
+
 
 part2 args = do nums <- input args
-                let oxygen = searchFor mostCommonBit nums
-                let co2 = searchFor leastCommonBit nums
-                putStrLn $ show (oxygen, co2, oxygen * co2)
-                let oxygen' = searchFor' mostCommonBit nums
-                let co2' = searchFor' leastCommonBit nums
-                putStrLn $ show (oxygen', co2', oxygen' * co2')
+                forM [searchFor, searchFor', searchFor''] $ \searchFor -> do
+                  let oxygen = searchFor mostCommonBit nums
+                  let co2 = searchFor leastCommonBit nums
+                  putStrLn $ show (oxygen, co2, oxygen * co2)
 
 day3 Part1 _ = do part1
                   Vectory.part1
