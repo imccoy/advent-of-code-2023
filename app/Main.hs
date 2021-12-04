@@ -7,6 +7,7 @@ import System.Exit (die)
 import Day1 (day1)
 import Day2 (day2)
 import Day3 (day3)
+import Day4 (day4)
 -- NEXT DAY IMPORT
 
 import Part (getPart, Part (Part1, Part2))
@@ -17,6 +18,7 @@ getDay n =
     "1" -> Just day1
     "2" -> Just day2
     "3" -> Just day3
+    "4" -> Just day4
     -- NEXT DAY CASE
     _ -> Nothing
 
