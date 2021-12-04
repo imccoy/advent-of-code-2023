@@ -42,21 +42,21 @@ leastCommonBit pair
 
 
 toInt :: [Int] -> Int
-toInt = foldl' (.|.) 0 . map (\(place, _) -> bit place) . filter (\(_, bit) -> bit == 1) . zip [11,10..]
-
-omega :: [CountPair] -> Int
-omega = toInt . map mostCommonBit
+toInt = foldl' (\n b -> 2 * n + b) 0
 
 part1 = do counts <- foldr1 (zipWith (<>)) . map (map bitToCountPair) <$> input []
-           let o = omega counts
-           let e = 0x0fff .&. (complement o)
-           putStrLn $ show (o, e, o * e)
+           let gamma = map mostCommonBit counts
+           let epsilon = map (1 -) gamma
+           let g = toInt gamma
+           let e = toInt epsilon
+           putStrLn $ show (g, e, g * e)
 
 searchFor criteria nums0 = go $ zip nums0 nums0
   where
     go [] = error "we have gone too far"
     go [(_, bits)] = toInt bits
-    go nums = let counts = foldl' (<>) mempty . map (bitToCountPair . head . fst) $ nums
+    go nums = let remainingLeadingDigits = map (head . fst) $ nums
+                  counts = foldl' (<>) mempty . map bitToCountPair $ remainingLeadingDigits
                   digitToMatch = criteria counts
                   matchingRows = filter ((== digitToMatch) . head . fst) nums
                in go $ map (\(remainingBits, allBits) -> (tail remainingBits, allBits)) matchingRows
