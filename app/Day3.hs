@@ -5,49 +5,20 @@ import Data.List (foldl')
 import Debug.Trace
 
 import Part (Part (Part1, Part2))
+import Day3.Common
 import qualified Day3.Vectory as Vectory
 
-input :: [String] -> IO [[Int]]
+input :: [String] -> IO [[Bit]]
 input args = map (map charToBit) . lines <$> readFile filename
   where filename = case args of
                      [] -> "inputs/day3"
                      [f] -> f
                      _ -> error "too many arguments"
 
-data CountPair = CountPair { zeros :: !Int, ones :: !Int }
-
-instance (Semigroup CountPair) where
-  a <> b = CountPair (zeros a + zeros b) (ones a + ones b)
-
-instance (Monoid CountPair) where
-  mempty = CountPair 0 0
-
-bitToCountPair 0 = CountPair 1 0
-bitToCountPair 1 = CountPair 0 1
-bitToCountPair d = error $ "Invalid countPair digit " ++ show d
-
-charToBit '0' = 0
-charToBit '1' = 1
-charToBit s = error $ "Invalid charToBit digit" ++ [s]
-
-mostCommonBit :: CountPair -> Int
-mostCommonBit pair
-  | zeros pair > ones pair = 0
-  | otherwise              = 1
-
-leastCommonBit :: CountPair -> Int
-leastCommonBit pair
-  | zeros pair <= ones pair = 0
-  | otherwise               = 1
-
-
-
-toInt :: [Int] -> Int
-toInt = foldl' (\n b -> 2 * n + b) 0
 
 part1 = do counts <- foldr1 (zipWith (<>)) . map (map bitToCountPair) <$> input []
            let gamma = map mostCommonBit counts
-           let epsilon = map (1 -) gamma
+           let epsilon = map invertBit gamma
            let g = toInt gamma
            let e = toInt epsilon
            putStrLn $ show (g, e, g * e)
