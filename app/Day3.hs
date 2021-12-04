@@ -75,7 +75,7 @@ searchFor'' criteria nums0 = go $ zip nums0 (repeat 0)
     go :: [([Bit], Int)] -> Int
     go [] = error "we have gone too far"
     go [(bits, n)] = foldl' (\n b -> 2 * n + bitToInt b) n bits
-    go nums = let (leading0s, leading1s) = foldr (\(bit:nums', n) (leading0s, leading1s) -> 
+    go nums = let (leading0s, leading1s) = foldr (\(bit:nums', n) (leading0s, leading1s) ->
                                                     let !n' = n * 2 + bitToInt bit
                                                      in case bit of
                                                           Bit0 -> ((nums', n'):leading0s, leading1s)
@@ -85,11 +85,28 @@ searchFor'' criteria nums0 = go $ zip nums0 (repeat 0)
                     Bit0 -> go leading0s
                     Bit1 -> go leading1s
 
+searchFor''' criteria nums0 = go $ zip nums0 (repeat 0)
+  where
+    go :: [([Bit], Int)] -> Int
+    go [] = error "we have gone too far"
+    go [(bits, n)] = foldl' (\n b -> 2 * n + bitToInt b) n bits
+    go nums = let (leading0s, leading1s) = flip partitionMap nums $ \(bit:nums', n) ->
+                    let !n' = n * 2 + bitToInt bit
+                     in (Bit0 == bit, (nums', n'))
+               in case criteria $ CountPair (length leading0s) (length leading1s) of
+                    Bit0 -> go leading0s
+                    Bit1 -> go leading1s
+
+partitionMap f [] = ([], [])
+partitionMap f (x:xs) = let (cond, x') = f x
+                            (trues, falses) = partitionMap f xs
+                         in if cond then (x':trues, falses) else (trues, x':falses)
+
 
 part2 args = do nums <- input args
-                forM [searchFor, searchFor', searchFor''] $ \searchFor -> do
-                  let oxygen = searchFor mostCommonBit nums
-                  let co2 = searchFor leastCommonBit nums
+                forM [searchFor, searchFor', searchFor'', searchFor'''] $ \s -> do
+                  let oxygen = s mostCommonBit nums
+                  let co2 = s leastCommonBit nums
                   putStrLn $ show (oxygen, co2, oxygen * co2)
 
 day3 Part1 _ = do part1
