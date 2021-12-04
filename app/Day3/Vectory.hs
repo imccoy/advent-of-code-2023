@@ -1,14 +1,13 @@
-module Day3 where
+{-# LANGUAGE BangPatterns #-}
+module Day3.Vectory where
 
-import Data.Bits
 import Data.List (foldl')
-import Debug.Trace
+import qualified Data.Vector as Vec
 
 import Part (Part (Part1, Part2))
-import qualified Day3.Vectory as Vectory
 
-input :: [String] -> IO [[Int]]
-input args = map (map charToBit) . lines <$> readFile filename
+input :: [String] -> IO [Vec.Vector Int]
+input args = map (Vec.fromList . map charToBit) . lines <$> readFile filename
   where filename = case args of
                      [] -> "inputs/day3"
                      [f] -> f
@@ -42,32 +41,30 @@ leastCommonBit pair
 
 
 
-toInt :: [Int] -> Int
+toInt :: Vec.Vector Int -> Int
 toInt = foldl' (\n b -> 2 * n + b) 0
 
-part1 = do counts <- foldr1 (zipWith (<>)) . map (map bitToCountPair) <$> input []
-           let gamma = map mostCommonBit counts
-           let epsilon = map (1 -) gamma
+part1 = do counts <- foldr1 (Vec.zipWith (<>)) . map (fmap bitToCountPair) <$> input []
+           let gamma = mostCommonBit <$> counts
+           let epsilon = (1 -) <$> gamma
            let g = toInt gamma
            let e = toInt epsilon
            putStrLn $ show (g, e, g * e)
 
-searchFor criteria nums0 = go $ zip nums0 nums0
+searchFor criteria nums0 = go 0 nums0
   where
-    go [] = error "we have gone too far"
-    go [(_, bits)] = toInt bits
-    go nums = let remainingLeadingDigits = map (head . fst) $ nums
-                  counts = foldl' (<>) mempty . map bitToCountPair $ remainingLeadingDigits
-                  digitToMatch = criteria counts
-                  matchingRows = filter ((== digitToMatch) . head . fst) nums
-               in go $ map (\(remainingBits, allBits) -> (tail remainingBits, allBits)) matchingRows
+    go _ [] = error "we have gone too far"
+    go _ [bits] = toInt bits
+    go !n nums = let currentLeadingDigits = map (Vec.! n) nums
+                     counts = foldl' (<>) mempty . map bitToCountPair $ currentLeadingDigits
+                     digitToMatch = criteria counts
+                     matchingRows = filter ((== digitToMatch) . (Vec.! n)) nums
+                  in go (n + 1) matchingRows
 
 part2 args = do nums <- input args
                 let oxygen = searchFor mostCommonBit nums
                 let co2 = searchFor leastCommonBit nums
                 putStrLn $ show (oxygen, co2, oxygen * co2)
 
-day3 Part1 _ = do part1
-                  Vectory.part1
-day3 Part2 args = do part2 args
-                     Vectory.part2 args
+day3 Part1 _ = part1
+day3 Part2 args = part2 args
