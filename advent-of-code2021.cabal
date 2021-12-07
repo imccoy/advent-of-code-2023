@@ -33,6 +33,7 @@ executable advent-of-code2021-exe
       Day3.Vectory
       Day4
       Day5
+      Day6
       Part
       Paths_advent_of_code2021
   hs-source-dirs:
