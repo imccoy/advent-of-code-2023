@@ -36,6 +36,7 @@ executable advent-of-code2021-exe
       Day6
       Day7
       Day8
+      Day8.Lol
       Part
       Paths_advent_of_code2021
   hs-source-dirs:

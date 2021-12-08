@@ -5,7 +5,7 @@ import Data.List (foldl')
 import Data.List.Split (splitWhen)
 
 input :: IO [Int]
-input =  map read .splitWhen (== ',') <$> readFile "inputs/day6"
+input =  map read . splitWhen (== ',') <$> readFile "inputs/day6"
 
 countAges :: [Int] -> [Integer]
 countAges ages = [fromIntegral . length . filter (== n) $ ages | n <- [0..maxAge]]

@@ -2,6 +2,8 @@ module Day8 (day8) where
 
 import Part (Part (Part1, Part2))
 
+import qualified Day8.Lol as Lol
+
 import Data.List (partition, permutations)
 import Data.List.Split (wordsBy)
 import Data.Maybe (isJust, listToMaybe)
@@ -93,5 +95,7 @@ figureOutputs = sum . map figureOutput
 part1 = putStrLn . show . countSignalsWithLength (map length [digit1, digit4, digit7, digit8]) =<< input
 part2 = putStrLn . show . figureOutputs =<< input
 
-day8 Part1 _ = part1
-day8 Part2 _ = part2
+day8 Part1 _ = do part1
+                  Lol.part1
+day8 Part2 _ = do part2
+                  Lol.part2
