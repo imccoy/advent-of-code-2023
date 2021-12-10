@@ -3,6 +3,7 @@
 module Day9 (day9) where
 
 import qualified Day9.Funk
+import qualified Day9.Funkr
 import Part (Part (Part1, Part2))
 
 import Control.Monad (forM)
@@ -68,5 +69,7 @@ part2 args = do terrain <- input args
 
 day9 Part1 args = do part1 args
                      Day9.Funk.part1 args
+                     Day9.Funkr.part1 args
 day9 Part2 args = do part2 args
                      Day9.Funk.part2 args
+                     Day9.Funkr.part2 args
