@@ -69,14 +69,16 @@ part1 navigations = putStrLn . show . sum . catMaybes . fmap (fmap errScore . fi
 part2 :: Parsed -> IO ()
 part2 navigations = let scores = sort . fmap (completionScore . fmap closingFor . reverse) . catMaybes . fmap incompleteness $ navigations
                      in putStrLn . show $ scores !! (length scores `div` 2)
+
 type Parsed = [String]
 
 parseInput :: String -> Parsed
 parseInput = lines
 
-day10 part args = do inputs <- parseInput <$> (readFile $ case args of 
-                                                            [] -> "inputs/day10"
-                                                            [filename] -> filename)
+day10 part args = do let filename = case args of
+                                      [] -> "inputs/day10"
+                                      [f] -> f
+                     inputs <- parseInput <$> readFile filename
                      case part of
                        Part1 -> part1 inputs
                        Part2 -> part2 inputs
