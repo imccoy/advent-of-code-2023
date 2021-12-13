@@ -26,45 +26,57 @@ class Visitability vis k where
   canVisit :: vis -> k -> Bool
   addVisit :: vis -> k -> vis
 
+data CaveAlways = CaveAlways
+
+instance Visitability CaveAlways [Char] where
+  canVisit _ _ = True
+  addVisit _ _ = CaveAlways
+
 newtype CaveOnce = CaveOnce (Set String)
 
 instance Visitability CaveOnce [Char] where
   canVisit (CaveOnce set) cave = not $ Set.member cave set
   addVisit (CaveOnce set) cave = CaveOnce $ Set.insert cave set
+
+data CaveLittleBig l b = CaveLittleBig !l !b
+
+instance (Visitability l String, Visitability b String) => Visitability (CaveLittleBig l b) String where
+  canVisit (CaveLittleBig l b) cave | isLarge cave = canVisit b cave
+                                    | otherwise    = canVisit l cave
+  addVisit (CaveLittleBig l b) cave | isLarge cave = CaveLittleBig l (addVisit b cave)
+                                    | otherwise    = CaveLittleBig (addVisit l cave) b
+
 emptyCaveOnce = CaveOnce Set.empty
 
 countPaths :: (Visitability vis String) => vis -> String -> Map String [String] -> Int
 countPaths _ "end" _ = 1
 countPaths vis start graph = let nexts = fromJust . Map.lookup start $ graph
-                                 vis' = if isLarge start then vis else addVisit vis start
+                                 vis' = addVisit vis start
                                  availableNexts = filter (canVisit vis') nexts
                               in sum . map (\next -> countPaths vis' next graph) $ availableNexts
 
 part1 :: Map String [String] -> IO ()
-part1 = putStrLn . show . countPaths emptyCaveOnce "start"
+part1 = putStrLn . show . countPaths (CaveLittleBig emptyCaveOnce CaveAlways) "start"
 
 data SuperPower = VisitedSmallCaveTwice
 
-data UsedSuperpower a = Have a | HaveNot a
+data UsedSuperpower a = Have !a | HaveNot !a
 
-data OneCaveTwice = OneCaveTwice !(UsedSuperpower SuperPower) !(Set String)
+data OneCaveTwice v = OneCaveTwice !(UsedSuperpower SuperPower) !v
 
-instance Visitability OneCaveTwice [Char]
-  where canVisit _                            "start" = False
-        canVisit (OneCaveTwice usedPower set) cave = case usedPower of
-                                                       Have VisitedSmallCaveTwice -> not $ Set.member cave set
-                                                       HaveNot VisitedSmallCaveTwice -> True
-        addVisit (OneCaveTwice usedPower set) cave = if Set.member cave set
-                                                       then case usedPower of
-                                                              Have VisitedSmallCaveTwice -> error "cannot use power twice"
-                                                              HaveNot VisitedSmallCaveTwice -> OneCaveTwice (Have VisitedSmallCaveTwice) set
-                                                       else OneCaveTwice usedPower (Set.insert cave set)
-
-emptyOneCaveTwice = OneCaveTwice (HaveNot VisitedSmallCaveTwice) Set.empty
-
+instance (Visitability v String) => Visitability (OneCaveTwice v) String
+  where canVisit _                          "start" = False
+        canVisit (OneCaveTwice usedPower v) cave = case usedPower of
+                                                     Have VisitedSmallCaveTwice -> canVisit v cave
+                                                     HaveNot VisitedSmallCaveTwice -> True
+        addVisit (OneCaveTwice usedPower v) cave = if not $ canVisit v cave
+                                                     then case usedPower of
+                                                            Have VisitedSmallCaveTwice -> error "cannot use power twice"
+                                                            HaveNot VisitedSmallCaveTwice -> OneCaveTwice (Have VisitedSmallCaveTwice) v
+                                                     else OneCaveTwice usedPower (addVisit v cave)
 
 part2 :: Map String [String] -> IO ()
-part2 = putStrLn . show . countPaths emptyOneCaveTwice "start"
+part2 = putStrLn . show . countPaths (CaveLittleBig (OneCaveTwice (HaveNot VisitedSmallCaveTwice) emptyCaveOnce) CaveAlways) "start"
 
 day12 part args = do let filename = case args of
                                       [] -> "inputs/day12"
