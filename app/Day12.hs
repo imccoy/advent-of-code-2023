@@ -48,15 +48,17 @@ instance (Visitability l String, Visitability b String) => Visitability (CaveLit
 
 emptyCaveOnce = CaveOnce Set.empty
 
+visitOr vis def f cave = if canVisit vis cave then f (addVisit vis cave) else def
+
 countPaths :: (Visitability vis String) => vis -> String -> Map String [String] -> Int
-countPaths vis start graph = search (addVisit vis start) start
+countPaths vis start graph = search start (addVisit vis start)
   where
-    search vis "end" = 1
-    search vis start = sum .
-                          map (\next -> search (addVisit vis next) next) .
-                          filter (canVisit vis) .
-                          fromJust $
-                          Map.lookup start graph
+    search "end" vis = 1
+    search start vis = sum .
+                         map (\next -> visitOr vis 0 (search next) next) .
+                         filter (canVisit vis) .
+                         fromJust $
+                         Map.lookup start graph
 
 part1 :: Map String [String] -> IO ()
 part1 = putStrLn . show . countPaths (CaveLittleBig emptyCaveOnce CaveAlways) "start"
