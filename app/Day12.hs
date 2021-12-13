@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances #-}
+
 module Day12 (day12) where
 
 import Data.Char (isAsciiUpper)
@@ -20,30 +22,49 @@ parseInput = Map.unionsWith (<>) . fmap edgesFromLine . lines
   where edgesFromLine line = let [a,b] = wordsBy (== '-') line
                               in Map.fromList [(a,[b]), (b,[a])]
 
-countPaths :: Set String -> String -> Map String [String] -> Int
+class Visitability vis k where
+  canVisit :: vis -> k -> Bool
+  addVisit :: vis -> k -> vis
+
+newtype CaveOnce = CaveOnce (Set String)
+
+instance Visitability CaveOnce [Char] where
+  canVisit (CaveOnce set) cave = not $ Set.member cave set
+  addVisit (CaveOnce set) cave = CaveOnce $ Set.insert cave set
+emptyCaveOnce = CaveOnce Set.empty
+
+countPaths :: (Visitability vis String) => vis -> String -> Map String [String] -> Int
 countPaths _ "end" _ = 1
-countPaths avoiding start graph = let nexts = fromJust . Map.lookup start $ graph
-                                      availableNexts = filter (not . flip Set.member avoiding) nexts
-                                      avoiding' = if isLarge start then avoiding else Set.insert start avoiding
-                                   in sum . map (\next -> countPaths avoiding' next graph) $ availableNexts
+countPaths vis start graph = let nexts = fromJust . Map.lookup start $ graph
+                                 vis' = if isLarge start then vis else addVisit vis start
+                                 availableNexts = filter (canVisit vis') nexts
+                              in sum . map (\next -> countPaths vis' next graph) $ availableNexts
 
 part1 :: Map String [String] -> IO ()
-part1 = putStrLn . show . countPaths Set.empty "start"
+part1 = putStrLn . show . countPaths emptyCaveOnce "start"
 
-countPathsB :: (Bool, Set String) -> String -> Map String [String] -> Int
-countPathsB _ "end" _ = 1
-countPathsB (smallVisitedTwice, avoiding) start graph = 
-  let nexts = fromJust . Map.lookup start $ graph
-      (nextsToAvoid, nextsOk) = partition (flip Set.member avoiding) nexts
-      avoiding' = if isLarge start then avoiding else Set.insert start avoiding
-   in sum $ map (\next -> countPathsB (smallVisitedTwice, avoiding') next graph) nextsOk ++
-            if smallVisitedTwice
-              then []
-              else map (\next -> countPathsB (True, avoiding') next graph) (filter isSemiSmall nextsToAvoid)
+data SuperPower = VisitedSmallCaveTwice
+
+data UsedSuperpower a = Have a | HaveNot a
+
+data OneCaveTwice = OneCaveTwice !(UsedSuperpower SuperPower) !(Set String)
+
+instance Visitability OneCaveTwice [Char]
+  where canVisit _                            "start" = False
+        canVisit (OneCaveTwice usedPower set) cave = case usedPower of
+                                                       Have VisitedSmallCaveTwice -> not $ Set.member cave set
+                                                       HaveNot VisitedSmallCaveTwice -> True
+        addVisit (OneCaveTwice usedPower set) cave = if Set.member cave set
+                                                       then case usedPower of
+                                                              Have VisitedSmallCaveTwice -> error "cannot use power twice"
+                                                              HaveNot VisitedSmallCaveTwice -> OneCaveTwice (Have VisitedSmallCaveTwice) set
+                                                       else OneCaveTwice usedPower (Set.insert cave set)
+
+emptyOneCaveTwice = OneCaveTwice (HaveNot VisitedSmallCaveTwice) Set.empty
 
 
 part2 :: Map String [String] -> IO ()
-part2 = putStrLn . show . countPathsB (False, Set.empty) "start"
+part2 = putStrLn . show . countPaths emptyOneCaveTwice "start"
 
 day12 part args = do let filename = case args of
                                       [] -> "inputs/day12"
