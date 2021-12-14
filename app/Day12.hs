@@ -54,17 +54,16 @@ instance (Visitability l String, Visitability b String) => Visitability (CaveLit
 emptyCaveOnce = CaveOnce Set.empty
 
 countPaths :: (Visitability vis String) => vis -> String -> Map String [String] -> Int
-countPaths vis start graph = search start (addVisit vis start)
+countPaths vis start graph = search start vis
   where
     search "end" vis = 1
     search start vis = sum .
                          map (\next -> visitOr vis 0 (search next) next) .
-                         filter (canVisit vis) .
                          fromJust $
                          Map.lookup start graph
 
 part1 :: Map String [String] -> IO ()
-part1 = putStrLn . show . countPaths (CaveLittleBig emptyCaveOnce CaveAlways) "start"
+part1 = putStrLn . show . countPaths (CaveLittleBig (AndCave NonStartCave emptyCaveOnce) CaveAlways) "start"
 
 data AnyCaveOnce = HaveVisitedAnyCaveOnce | HaveNotVisitedAnyCaveOnce
 
@@ -90,7 +89,7 @@ instance (Visitability v String, Visitability s String) => Visitability (SecondC
                                                     (\v -> f $ SecondChance v s) cave
 
 part2 :: Map String [String] -> IO ()
-part2 = putStrLn . show . countPaths (CaveLittleBig (SecondChance emptyCaveOnce (AndCave NonStartCave HaveNotVisitedAnyCaveOnce)) CaveAlways) "start"
+part2 = putStrLn . show . countPaths (AndCave NonStartCave ((CaveLittleBig (SecondChance emptyCaveOnce HaveNotVisitedAnyCaveOnce)) CaveAlways)) "start"
 
 day12 part args = do let filename = case args of
                                       [] -> "inputs/day12"
