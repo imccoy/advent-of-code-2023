@@ -72,11 +72,16 @@ instance Visitability AnyCaveOnce String where
   visitOr HaveVisitedAnyCaveOnce def _ _ = def
   visitOr HaveNotVisitedAnyCaveOnce _ f _ = f HaveVisitedAnyCaveOnce
 
-data NonStartCave v = NonStartCave !v
+data NonStartCave = NonStartCave
 
-instance (Visitability v String) => Visitability (NonStartCave v) String where
+instance Visitability NonStartCave String where
   visitOr _ def _ "start" = def
-  visitOr (NonStartCave v) def f cave = visitOr v def (\v -> f $ NonStartCave v) cave
+  visitOr _ _ f _ = f NonStartCave
+
+data AndCave a b = AndCave !a !b
+
+instance (Visitability a String, Visitability b String) => Visitability (AndCave a b) String where
+  visitOr (AndCave a b) def f cave = visitOr a def (\a' -> visitOr b def (\b' -> f $ AndCave a' b') cave) cave
 
 data SecondChance v s = SecondChance !v !s
 
@@ -85,7 +90,7 @@ instance (Visitability v String, Visitability s String) => Visitability (SecondC
                                                     (\v -> f $ SecondChance v s) cave
 
 part2 :: Map String [String] -> IO ()
-part2 = putStrLn . show . countPaths (CaveLittleBig (SecondChance emptyCaveOnce (NonStartCave HaveNotVisitedAnyCaveOnce)) CaveAlways) "start"
+part2 = putStrLn . show . countPaths (CaveLittleBig (SecondChance emptyCaveOnce (AndCave NonStartCave HaveNotVisitedAnyCaveOnce)) CaveAlways) "start"
 
 day12 part args = do let filename = case args of
                                       [] -> "inputs/day12"
