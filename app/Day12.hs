@@ -66,12 +66,17 @@ countPaths vis start graph = search start (addVisit vis start)
 part1 :: Map String [String] -> IO ()
 part1 = putStrLn . show . countPaths (CaveLittleBig emptyCaveOnce CaveAlways) "start"
 
-data NonStartCaveOnce = HaveVisitedNonStartCaveOnce | HaveNotVisitedNonStartCaveOnce
+data AnyCaveOnce = HaveVisitedAnyCaveOnce | HaveNotVisitedAnyCaveOnce
 
-instance Visitability NonStartCaveOnce String where
-  visitOr HaveVisitedNonStartCaveOnce def _ _ = def
-  visitOr HaveNotVisitedNonStartCaveOnce def _ "start" = def
-  visitOr HaveNotVisitedNonStartCaveOnce _ f _ = f HaveVisitedNonStartCaveOnce
+instance Visitability AnyCaveOnce String where
+  visitOr HaveVisitedAnyCaveOnce def _ _ = def
+  visitOr HaveNotVisitedAnyCaveOnce _ f _ = f HaveVisitedAnyCaveOnce
+
+data NonStartCave v = NonStartCave !v
+
+instance (Visitability v String) => Visitability (NonStartCave v) String where
+  visitOr _ def _ "start" = def
+  visitOr (NonStartCave v) def f cave = visitOr v def (\v -> f $ NonStartCave v) cave
 
 data SecondChance v s = SecondChance !v !s
 
@@ -80,7 +85,7 @@ instance (Visitability v String, Visitability s String) => Visitability (SecondC
                                                     (\v -> f $ SecondChance v s) cave
 
 part2 :: Map String [String] -> IO ()
-part2 = putStrLn . show . countPaths (CaveLittleBig (SecondChance emptyCaveOnce HaveNotVisitedNonStartCaveOnce) CaveAlways) "start"
+part2 = putStrLn . show . countPaths (CaveLittleBig (SecondChance emptyCaveOnce (NonStartCave HaveNotVisitedAnyCaveOnce)) CaveAlways) "start"
 
 day12 part args = do let filename = case args of
                                       [] -> "inputs/day12"
