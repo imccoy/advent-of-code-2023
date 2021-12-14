@@ -24,7 +24,12 @@ parseInput = Map.unionsWith (<>) . fmap edgesFromLine . lines
 
 class Visitability vis k where
   canVisit :: vis -> k -> Bool
+  canVisit vis cave = visitOr vis False (const True) cave
   addVisit :: vis -> k -> vis
+  addVisit vis cave = visitOr vis vis (\vis' -> vis') cave
+
+  visitOr :: vis -> a -> (vis -> a) -> k -> a
+  visitOr vis def f cave = if canVisit vis cave then f (addVisit vis cave) else def
 
 data CaveAlways = CaveAlways
 
@@ -48,8 +53,6 @@ instance (Visitability l String, Visitability b String) => Visitability (CaveLit
 
 emptyCaveOnce = CaveOnce Set.empty
 
-visitOr vis def f cave = if canVisit vis cave then f (addVisit vis cave) else def
-
 countPaths :: (Visitability vis String) => vis -> String -> Map String [String] -> Int
 countPaths vis start graph = search start (addVisit vis start)
   where
@@ -70,15 +73,14 @@ data UsedSuperpower a = Have !a | HaveNot !a
 data OneCaveTwice v = OneCaveTwice !(UsedSuperpower SuperPower) !v
 
 instance (Visitability v String) => Visitability (OneCaveTwice v) String
-  where canVisit _                          "start" = False
-        canVisit (OneCaveTwice usedPower v) cave = case usedPower of
-                                                     Have VisitedSmallCaveTwice -> canVisit v cave
-                                                     HaveNot VisitedSmallCaveTwice -> True
-        addVisit (OneCaveTwice usedPower v) cave = if not $ canVisit v cave
-                                                     then case usedPower of
-                                                            Have VisitedSmallCaveTwice -> error "cannot use power twice"
-                                                            HaveNot VisitedSmallCaveTwice -> OneCaveTwice (Have VisitedSmallCaveTwice) v
-                                                     else OneCaveTwice usedPower (addVisit v cave)
+  where visitOr (OneCaveTwice usedPower vis) def f cave = if canVisit vis cave
+                                                            then f (OneCaveTwice usedPower $ addVisit vis cave)
+                                                            else case usedPower of
+                                                                   Have VisitedSmallCaveTwice -> def
+                                                                   HaveNot VisitedSmallCaveTwice ->
+                                                                     if cave == "start"
+                                                                       then def
+                                                                       else f (OneCaveTwice (Have VisitedSmallCaveTwice) vis)
 
 part2 :: Map String [String] -> IO ()
 part2 = putStrLn . show . countPaths (CaveLittleBig (OneCaveTwice (HaveNot VisitedSmallCaveTwice) emptyCaveOnce) CaveAlways) "start"
