@@ -25,17 +25,14 @@ neighbours (x, y) risks = catMaybes [ adj (-1) 0
 lowestRiskFrom :: Map (Int, Int) Int -> Map (Int, Int) Int -> [(Int, Int)] -> Map (Int, Int) Int
 lowestRiskFrom risks pathCosts [] = pathCosts
 lowestRiskFrom risks pathCosts ps =
-  let (frontier, pathCosts') = foldr (\p (nextps, pathCosts) ->
-                                        let costToHere = pathCosts ! p
-                                            isCheaper _ Nothing = True
-                                            isCheaper leavingCost (Just currentCostToNext) = costToHere + leavingCost < currentCostToNext
-                                         in foldr (\(p, leavingCost) (ps, m) ->
-                                                      if isCheaper leavingCost (pathCosts !? p)
-                                                        then (p:ps, Map.insert p (costToHere + leavingCost) m)
-                                                        else (ps, m)
-                                                  ) (nextps, pathCosts) . neighbours p $ risks
-                                     ) ([], pathCosts) ps
-   in lowestRiskFrom risks pathCosts' frontier
+  let includeSite fromPoint toPoint cost = let newCost = pathCosts ! fromPoint + cost
+                                            in case Map.lookup toPoint pathCosts of
+                                                 Nothing -> Just (toPoint, newCost)
+                                                 Just currentBest -> if newCost < currentBest
+                                                                       then Just (toPoint, newCost)
+                                                                       else Nothing
+      pointCosts = catMaybes . concat . fmap (\p -> fmap (\(n, leavingCost) -> includeSite p n leavingCost) $ neighbours p risks) $ ps
+   in lowestRiskFrom risks (foldr (\(p, c) -> Map.insertWith min p c) pathCosts pointCosts) (nub $ fst <$> pointCosts)
 
 lowestRiskFromOrigin risks = lowestRiskFrom risks (Map.singleton (0,0) 0) [(0, 0)]
 
@@ -44,23 +41,21 @@ bottomRight = snd . Map.findMax
 
 padLeft c n s = take (n - length s) (repeat c) ++ s
 
-printRisks' keys risks =
+printRisks' width keys risks =
   forM_ [0..maximum (fst <$> keys)] $ \x ->
-    putStrLn . unwords $ [fromMaybe "?" (show <$> risks !? (x,y)) | y <- [0..maximum (snd <$> keys)]]
+    putStrLn . unwords $ [padLeft ' ' width . fromMaybe "?"  $ show <$> risks !? (x,y) | y <- [0..maximum (snd <$> keys)]]
 
-printRisks risks = printRisks' (Map.keys risks) risks
+printRisks width risks = printRisks' width (Map.keys risks) risks
 
 part1 :: Map (Int, Int) Int -> IO ()
 part1 risks = do
-  printRisks risks
+  printRisks 0 risks
   putStrLn "===="
   putStrLn . show . neighbours (2, 0) $ risks
   putStrLn "===="
 
   let costs = lowestRiskFromOrigin risks
-  printRisks' (Map.keys risks) costs
-  forM_ [0..maximum (fst <$> Map.keys risks)] $ \x ->
-    putStrLn . unwords $ [padLeft ' ' 3 . fromMaybe "?" $ show <$> costs !? (x,y) | y <- [0..maximum (snd <$> Map.keys risks)]]
+  printRisks' 3 (Map.keys risks) costs
   putStrLn . show . bottomRight . lowestRiskFromOrigin $ risks
 
 moduloIncrement :: Int -> Int -> Int
@@ -83,8 +78,8 @@ growMap = growDown 4 . growRight 4
 part2 :: Map (Int, Int) Int -> IO ()
 part2 risks = do
   putStrLn . show $ moduloIncrement 1 <$> [1..10]
-  printRisks $ growMap (Map.singleton (0,0) 8)
-  printRisks $ growMap (Map.fromList [((0,0),8),((0,1),8),((1,0),8),((1,1),8)])
+  printRisks 0 $ growMap (Map.singleton (0,0) 8)
+  printRisks 0 $ growMap (Map.fromList [((0,0),8),((0,1),8),((1,0),8),((1,1),8)])
   putStrLn . show . bottomRight . lowestRiskFromOrigin . growMap $ risks
 
 day15 part args = do let filename = case args of
