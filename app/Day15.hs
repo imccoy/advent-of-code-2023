@@ -25,14 +25,14 @@ neighbours (x, y) risks = catMaybes [ adj (-1) 0
 lowestRiskFrom :: Map (Int, Int) Int -> Map (Int, Int) Int -> [(Int, Int)] -> Map (Int, Int) Int
 lowestRiskFrom risks pathCosts [] = pathCosts
 lowestRiskFrom risks pathCosts ps =
-  let includeSite fromPoint toPoint cost = let newCost = pathCosts ! fromPoint + cost
-                                            in case Map.lookup toPoint pathCosts of
-                                                 Nothing -> Just (toPoint, newCost)
-                                                 Just currentBest -> if newCost < currentBest
-                                                                       then Just (toPoint, newCost)
-                                                                       else Nothing
-      pointCosts = catMaybes . concat . fmap (\p -> fmap (\(n, leavingCost) -> includeSite p n leavingCost) $ neighbours p risks) $ ps
-   in lowestRiskFrom risks (foldr (\(p, c) -> Map.insertWith min p c) pathCosts pointCosts) (nub $ fst <$> pointCosts)
+  let newCosts = Map.unionsWith min $ newPointCosts <$> ps
+      newPointCosts p = (+ pathCosts ! p) <$> (Map.fromList . neighbours p $ risks)
+      improved = Map.filterWithKey (\p cost -> case pathCosts !? p of
+                                                 Just pathCost -> cost < pathCost
+                                                 Nothing -> True
+                                   ) newCosts
+   in lowestRiskFrom risks (Map.union improved pathCosts) (Map.keys improved)
+
 
 lowestRiskFromOrigin risks = lowestRiskFrom risks (Map.singleton (0,0) 0) [(0, 0)]
 
