@@ -2,6 +2,8 @@
 
 module Day17 (day17) where
 
+import Data.Semigroup (Max(..), Sum(..))
+
 import Part (Part (Part1, Part2))
 
 parseInput :: String -> ((Int,Int),(Int,Int))
@@ -29,7 +31,9 @@ runTrial target = go 0
                                       in go (max (stateHeight state') maxHeight) state'
 
 part1 :: ((Int,Int),(Int,Int)) -> IO ()
-part1 target = tryYd 0 0
+part1 target = search target Max
+
+search target whenFound = tryYd (-400) 0
   where
     tryYd yd bestSoFar = do
       let bestSoFar' = tryXds yd (targetMaxX target) bestSoFar
@@ -37,15 +41,14 @@ part1 target = tryYd 0 0
         then putStrLn $ "Yep! " ++ show yd ++ " -> " ++ show bestSoFar'
         else putStrLn $ "Nope: " ++ show yd ++ ", still " ++ show bestSoFar 
       tryYd (yd + 1) bestSoFar'
-    tryXds yd xd bestSoFar = do let bestSoFar' = case runTrial target ((0,0),(xd,yd)) of
-                                                   Just maxHeight -> if maxHeight > bestSoFar
-                                                                       then maxHeight
-                                                                       else bestSoFar
-                                                   Nothing -> bestSoFar
-                                if xd == 0 then bestSoFar' else tryXds yd (xd - 1) bestSoFar'
+    tryXds yd xd bestSoFar = let here = case runTrial target ((0,0),(xd,yd)) of
+                                          Just maxHeight -> whenFound maxHeight
+                                          Nothing -> mempty
+                                 bestSoFar' = bestSoFar <> here
+                              in if xd == 0 then bestSoFar' else tryXds yd (xd - 1) bestSoFar'
 
 part2 :: ((Int,Int),(Int,Int)) -> IO ()
-part2 _ = putStrLn "part2"
+part2 target = search target (\_ -> Sum 1)
 
 day17 part args = do let filename = case args of
                                       [] -> "inputs/day17"
