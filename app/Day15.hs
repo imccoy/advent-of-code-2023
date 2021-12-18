@@ -6,6 +6,8 @@ import Data.Foldable (maximum)
 import Data.List (nub)
 import Data.Map (Map, (!), (!?))
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe)
 
 import Part (Part (Part1, Part2))
@@ -36,6 +38,44 @@ lowestRiskFrom risks pathCosts ps =
 
 lowestRiskFromOrigin risks = lowestRiskFrom risks (Map.singleton (0,0) 0) [(0, 0)]
 
+
+lowestRiskFromDijkstra :: Map (Int, Int) Int -> (Int, Int) -> (Int, Int) -> Int
+lowestRiskFromDijkstra risks start end =
+  let initialCosts = const maxBound <$> risks
+      initialHeap = Map.unionsWith (<>) $ (\x -> Map.singleton maxBound (Set.singleton x)) <$> Map.keys risks
+      pullLowCostNode map = let ((minCost, points), rest) = Map.deleteFindMin map
+                                (p, restPoints) = Set.deleteFindMin points
+                             in (p, if Set.null restPoints
+                                      then rest
+                                      else Map.insert minCost restPoints rest)
+      updateCostsHeap :: (Map (Int, Int) Int, Map Int (Set (Int, Int))) -> (Int,Int) -> Int -> (Map (Int, Int) Int, Map Int (Set (Int, Int)))
+      updateCostsHeap (costs, heap) point cost = ( Map.insert point cost costs
+                                                 , Map.alter (Just . (Set.insert point) . fromMaybe Set.empty) cost $
+                                                   case Map.lookup point costs of
+                                                     Nothing -> heap
+                                                     Just oldCost -> Map.alter (noneIfEmpty . Set.delete point . fromMaybe Set.empty) oldCost $
+                                                                     heap
+                                                 )
+      noneIfEmpty set | Set.null set = Nothing
+                      | otherwise = Just set
+      next (costs, heap) visited = let (next, heap') = pullLowCostNode heap
+                                    in go next (costs, heap') visited
+
+      go :: (Int, Int) -> (Map (Int, Int) Int, Map Int (Set (Int, Int))) -> Set (Int, Int) -> Int
+      go node (costs, heap) visited
+        | node == end = costs ! end
+        | Set.member node visited = next (costs, heap) visited
+        | otherwise = let costToHere = costs ! node
+                          (costs', heap') = foldr (\(n,c) ch -> if costToHere + c < fst ch ! n
+                                                                  then updateCostsHeap ch n (costToHere + c)
+                                                                  else ch
+                                                  ) (costs, heap) . neighbours node $ risks
+                       in next (costs', heap') (Set.insert node visited)
+   in go start (updateCostsHeap (initialCosts,  initialHeap) start 0) Set.empty
+
+lowestRiskFromOriginDijkstra risks = lowestRiskFromDijkstra risks (0,0) (fst . Map.findMax $ risks)
+
+
 bottomRight :: Map (Int,Int) v -> v
 bottomRight = snd . Map.findMax
 
@@ -57,6 +97,7 @@ part1 risks = do
   let costs = lowestRiskFromOrigin risks
   printRisks' 3 (Map.keys risks) costs
   putStrLn . show . bottomRight . lowestRiskFromOrigin $ risks
+  putStrLn . show . lowestRiskFromOriginDijkstra $ risks
 
 moduloIncrement :: Int -> Int -> Int
 moduloIncrement n = (+ 1) . (`mod` 9) . (+ (-1)) . (+ n)
@@ -80,6 +121,7 @@ part2 risks = do
   putStrLn . show $ moduloIncrement 1 <$> [1..10]
   printRisks 0 $ growMap (Map.singleton (0,0) 8)
   printRisks 0 $ growMap (Map.fromList [((0,0),8),((0,1),8),((1,0),8),((1,1),8)])
+  putStrLn . show . lowestRiskFromOriginDijkstra . growMap $ risks
   putStrLn . show . bottomRight . lowestRiskFromOrigin . growMap $ risks
 
 day15 part args = do let filename = case args of
