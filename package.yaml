@@ -25,7 +25,7 @@ dependencies:
 - lens
 - split
 - vector
-
+- parsec
 
 executables:
   advent-of-code2021-exe:
