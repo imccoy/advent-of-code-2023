@@ -8,7 +8,7 @@ import Data.Map (Map, (!), (!?))
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 
 import Part (Part (Part1, Part2))
 
@@ -42,34 +42,29 @@ lowestRiskFromOrigin risks = lowestRiskFrom risks (Map.singleton (0,0) 0) [(0, 0
 lowestRiskFromDijkstra :: Map (Int, Int) Int -> (Int, Int) -> (Int, Int) -> Int
 lowestRiskFromDijkstra risks start end =
   let initialCosts = const maxBound <$> risks
-      initialHeap = Map.unionsWith (<>) $ (\x -> Map.singleton maxBound (Set.singleton x)) <$> Map.keys risks
-      pullLowCostNode map = let ((minCost, points), rest) = Map.deleteFindMin map
-                                (p, restPoints) = Set.deleteFindMin points
-                             in (p, if Set.null restPoints
-                                      then rest
-                                      else Map.insert minCost restPoints rest)
-      updateCostsHeap :: (Map (Int, Int) Int, Map Int (Set (Int, Int))) -> (Int,Int) -> Int -> (Map (Int, Int) Int, Map Int (Set (Int, Int)))
+      initialHeap = Map.unionsWith (<>) $ (\x -> Map.singleton maxBound [x]) <$> Map.keys risks
+      pullLowCostNode :: Map Int [(Int, Int)] -> ((Int, Int), Map Int [(Int, Int)])
+      pullLowCostNode map = let ((minCost, (p:restPoints)), rest) = Map.deleteFindMin map
+                             in (p, case restPoints of
+                                      [] -> rest
+                                      _ -> Map.insert minCost restPoints rest)
+      updateCostsHeap :: (Map (Int, Int) Int, Map Int [(Int, Int)]) -> (Int,Int) -> Int -> (Map (Int, Int) Int, Map Int [(Int, Int)])
       updateCostsHeap (costs, heap) point cost = ( Map.insert point cost costs
-                                                 , Map.alter (Just . (Set.insert point) . fromMaybe Set.empty) cost $
-                                                   case Map.lookup point costs of
-                                                     Nothing -> heap
-                                                     Just oldCost -> Map.alter (noneIfEmpty . Set.delete point . fromMaybe Set.empty) oldCost $
-                                                                     heap
+                                                 , Map.alter ((Just . (point:)) . fromMaybe []) cost heap
+                                                     -- in theory we shoud delete the point from the old cost at `heap ! (costs ! point)`
+                                                     -- at this point, but it's not worth it, and it's not actually necessary
                                                  )
-      noneIfEmpty set | Set.null set = Nothing
-                      | otherwise = Just set
       next (costs, heap) visited = let (next, heap') = pullLowCostNode heap
                                     in go next (costs, heap') visited
 
-      go :: (Int, Int) -> (Map (Int, Int) Int, Map Int (Set (Int, Int))) -> Set (Int, Int) -> Int
+      go :: (Int, Int) -> (Map (Int, Int) Int, Map Int [(Int, Int)]) -> Set (Int, Int) -> Int
       go node (costs, heap) visited
         | node == end = costs ! end
         | Set.member node visited = next (costs, heap) visited
         | otherwise = let costToHere = costs ! node
-                          (costs', heap') = foldr (\(n,c) ch -> if costToHere + c < fst ch ! n
-                                                                  then updateCostsHeap ch n (costToHere + c)
-                                                                  else ch
-                                                  ) (costs, heap) . neighbours node $ risks
+                          (costs', heap') = foldr (\(n,c) ch -> updateCostsHeap ch n c) (costs, heap) .
+                                              mapMaybe (\(n, c) -> if costToHere + c < costs ! n then Just (n, costToHere + c) else Nothing) .
+                                              neighbours node $ risks
                        in next (costs', heap') (Set.insert node visited)
    in go start (updateCostsHeap (initialCosts,  initialHeap) start 0) Set.empty
 
