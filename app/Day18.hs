@@ -1,8 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
 module Day18 (day18) where
 
-import Control.Monad (void, forM_)
+import Control.Monad (void, forM_, (<=<))
+import Control.Monad.ST
 import Data.Either (either)
 import Data.Foldable (foldl')
+import Data.STRef
 import Text.Parsec
 
 import Part (Part (Part1, Part2))
@@ -64,6 +67,71 @@ explode = toDone . go 0
     toDone (Exploded n) = Just n
     toDone (Keep) = Nothing
 
+data SNLinked s = SNLSingle (Maybe (STRef s (SNLinked s))) Int (Maybe (STRef s (SNLinked s)))
+                | SNLPair (STRef s (SNLinked s)) (STRef s (SNLinked s))
+
+makeSNLinked :: SNNumber -> ST s (STRef s (SNLinked s))
+makeSNLinked snNum = do initial <- buildInitial snNum
+                        rightmost <- addLeftLinks Nothing initial
+                        addRightLinks rightmost Nothing
+                        pure initial
+  where buildInitial :: SNNumber -> ST s (STRef s (SNLinked s))
+        buildInitial (SNSingle n) = newSTRef $ SNLSingle Nothing n Nothing
+        buildInitial (SNPair l r) = do l' <- buildInitial l
+                                       r' <- buildInitial r
+                                       newSTRef $ SNLPair l' r'
+        addLeftLinks :: Maybe (STRef s (SNLinked s)) -> STRef s (SNLinked s) -> ST s (STRef s (SNLinked s))
+        addLeftLinks leftRef nodeRef = do node <- readSTRef nodeRef
+                                          case node of
+                                            SNLSingle _ n _ -> do writeSTRef nodeRef (SNLSingle leftRef n Nothing)
+                                                                  pure nodeRef
+                                            SNLPair l r -> do lastLeftRef <- addLeftLinks leftRef l
+                                                              addLeftLinks (Just lastLeftRef) r
+        addRightLinks :: STRef s (SNLinked s) -> Maybe (STRef s (SNLinked s)) -> ST s ()
+        addRightLinks curr prev = do (SNLSingle nextRef n rightRef) <- readSTRef curr
+                                     writeSTRef curr (SNLSingle nextRef n prev)
+                                     case nextRef of
+                                       Nothing -> pure ()
+                                       Just nextRef -> addRightLinks nextRef (Just curr)
+ 
+ 
+
+
+unLinked :: STRef s (SNLinked s) -> ST s SNNumber
+unLinked nodeRef = do
+  readSTRef nodeRef >>= \case
+    SNLSingle _ n _ -> pure $ SNSingle n
+    SNLPair l r -> do l' <- unLinked l
+                      r' <- unLinked r
+                      pure $ SNPair l' r'
+
+explode' sn = runST $ do
+                linked <- makeSNLinked sn
+                exploded <- go 0 linked
+                case exploded of
+                  True -> Just <$> unLinked linked
+                  False -> pure Nothing
+  where
+    go :: Int -> STRef s (SNLinked s) -> ST s Bool
+    go 4 nodeRef = readSTRef nodeRef >>= \case
+                     (SNLSingle _ _ _) -> pure False
+                     (SNLPair leftRef rightRef) -> do
+                       (SNLSingle newPrev left _) <- readSTRef leftRef
+                       (SNLSingle _ right newSucc) <- readSTRef rightRef
+                       writeSTRef nodeRef $ SNLSingle newPrev 0 newSucc
+                       adjustNode newPrev (+ left)
+                       adjustNode newSucc (+ right)
+                       pure True
+    go depth nodeRef = readSTRef nodeRef >>= \case
+                         (SNLSingle _ _ _) -> pure False
+                         (SNLPair left right) -> go (depth + 1) left >>= \case
+                           True -> pure $ True
+                           False -> go (depth + 1) right
+    adjustNode Nothing _ = pure ()
+    adjustNode (Just ref) f = modifySTRef ref (\(SNLSingle prev n next) -> SNLSingle prev (f n) next)
+
+
+
 split (SNSingle n) | n >= 10 = Just (SNPair (SNSingle (n `div` 2)) (SNSingle (n `div` 2 + n `mod` 2)))
                    | otherwise = Nothing
 split (SNPair l r) = case split l of
@@ -85,8 +153,11 @@ snString (SNPair l r) = "[" ++ snString l ++ "," ++ snString r ++ "]"
 
 part1 :: [SNNumber] -> IO ()
 part1 inputs = do
-  forM_ ["[[[[[9,8],1],2],3],4]","[7,[6,[5,[4,[3,2]]]]]","[[6,[5,[4,[3,2]]]],1]","[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]","[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]"] $ \explodeTest ->
+  forM_ ["[[[[[9,8],1],2],3],4]","[7,[6,[5,[4,[3,2]]]]]","[[6,[5,[4,[3,2]]]],1]","[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]","[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]"] $ \explodeTest -> do
     putStrLn $ explodeTest ++ " -> " ++ case explode . parseLine $ explodeTest of
+                                          Just n -> snString n
+                                          Nothing -> "NOTHING"
+    putStrLn $ explodeTest ++ " -> " ++ case explode' . parseLine $ explodeTest of
                                           Just n -> snString n
                                           Nothing -> "NOTHING"
   putStrLn "==========="
