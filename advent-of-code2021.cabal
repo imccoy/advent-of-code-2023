@@ -36,6 +36,7 @@ executable advent-of-code2021-exe
       Day16
       Day17
       Day18
+      Day19
       Day2
       Day3
       Day3.Common
