@@ -39,6 +39,7 @@ executable advent-of-code2021-exe
       Day19
       Day2
       Day20
+      Day21
       Day3
       Day3.Common
       Day3.Vectory
@@ -60,6 +61,7 @@ executable advent-of-code2021-exe
       base >=4.7 && <5
     , containers
     , lens
+    , mtl
     , parsec
     , split
     , vector
