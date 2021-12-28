@@ -41,6 +41,9 @@ executable advent-of-code2021-exe
       Day20
       Day21
       Day22
+      Day23
+      Day24
+      Day25
       Day3
       Day3.Common
       Day3.Vectory
