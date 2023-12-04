@@ -1,69 +1,50 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Day2 (day2) where
-
-import Data.Foldable (foldl')
-import Control.Lens
-import Control.Lens.TH
-
 import Part (Part (Part1, Part2))
 
-newtype Depth = Depth { _depth :: Int }
-  deriving (Show)
-makeLenses ''Depth
+import Control.Monad (void)
+import Data.Maybe (fromMaybe)
+import Text.Parsec
 
-newtype Horizontal = Horizontal { _horizontal :: Int }
-  deriving (Show)
-makeLenses ''Horizontal
+data Game = Game Int [Round]
+data Round = Round Int Int Int
 
-newtype Aim = Aim { _aim :: Int }
-  deriving (Show)
-makeLenses ''Aim
+type Parsed = [Game]
 
-data Position = Position { _posHorizontal :: !Horizontal, _posDepth :: !Depth, _posAim ::  !Aim }
-  deriving (Show)
-makeLenses ''Position
+parseGame = do void $ string "Game "
+               gameNumber <- read <$> many1 digit
+               void $ string ": "
+               Game gameNumber <$> sepBy parseRound (string "; ")
 
-data Command = Forward !Int | Down !Int | Up !Int
+parseRound = do colours <- sepBy (do count <- read <$> many1 digit
+                                     void $ char ' '
+                                     colour <- string "red" <|> string "green" <|> string "blue"
+                                     pure (colour, count)
+                                 )
+                                 (string ", ")
+                let colourCount colour = fromMaybe 0 $ lookup colour colours
+                pure $ Round (colourCount "red") (colourCount "green") (colourCount "blue")
 
+parseInput :: String -> [Game]
+parseInput = fmap parseLine . lines
+parseLine = either (error . show) id . runParser parseGame () "none" 
 
-applyCommand1 (Forward distance) = posHorizontal . horizontal %~ (+ distance)
-applyCommand1 (Down distance) = posDepth . depth +~ distance
-applyCommand1 (Up distance) = posDepth . depth -~ distance
+part1 :: Parsed -> IO ()
+part1 games = putStrLn $ show . sum . map (\(Game n _) -> n) . filter (\(Game _ rounds) -> all (\(Round r g b) -> r <= 12 && g <= 13 && b <= 14) rounds) $ games
 
-readCommand line = case words line of
-                     ["forward",amount] -> Forward (read amount)
-                     ["down", amount] -> Down (read amount)
-                     ["up", amount] -> Up (read amount)
-                     _ -> error $ "Unparsable line " ++ line
+powerContribution f rounds = case maximum (map f rounds) of
+                               0 -> 1
+                               n -> n
 
-input :: IO String
-input = readFile "inputs/day2"
+part2 :: Parsed -> IO ()
+part2 games = putStrLn $ show . sum $ map (\(Game _ rounds) -> (powerContribution (\(Round r _ _) -> r) rounds) *
+                                                               (powerContribution (\(Round _ g _) -> g) rounds) *
+                                                               (powerContribution (\(Round _ _ b) -> b) rounds)
+                                          ) games
 
-startPosition = Position (Horizontal 0) (Depth 0) (Aim 0)
-
-navigate :: (Position -> Command -> Position) -> [Command] -> Position
-navigate applyCommand = foldl' applyCommand startPosition
-
-
-run applyCommand = do
-  result <- navigate applyCommand . fmap readCommand . lines <$> input
-  putStrLn . show $ result
-  let (Position (Horizontal h) (Depth d) _) = result
-  putStrLn . show $ h * d
-
-
-part1 = run (flip applyCommand1)
-
-applyCommand2 pos (Forward distance) =
-  (posHorizontal . horizontal +~ distance) $
-  (posDepth . depth +~ distance * (pos ^. (posAim . aim))) $
-  pos
-applyCommand2 pos (Down distance) = posAim . aim +~ distance $ pos
-applyCommand2 pos (Up distance) = posAim . aim -~ distance $ pos
-
-
-
-part2 = run applyCommand2
-
-day2 Part1 _ = part1
-day2 Part2 _ = part2
+day2 part args = do let filename = case args of
+                                      [] -> "inputs/day2"
+                                      [f] -> f
+                    inputs <- parseInput <$> readFile filename
+                    case part of
+                      Part1 -> part1 inputs
+                      Part2 -> part2 inputs

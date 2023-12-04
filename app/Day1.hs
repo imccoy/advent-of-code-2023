@@ -1,31 +1,43 @@
 module Day1 (day1) where
+
 import Part (Part (Part1, Part2))
-import Data.Foldable (foldl')
+import Data.Char
+import Data.List
+import Control.Lens
+import Control.Monad
 
 input :: IO String
 input = readFile "inputs/day1"
 
-inputNumbers :: IO [Int]
-inputNumbers = fmap read . lines <$> input
+inputLines :: IO [String]
+inputLines = lines <$> input
 
-countIncreases :: (Maybe Int, Int) -> Int -> (Maybe Int, Int)
-countIncreases (Nothing, count) current = (Just current, count)
-countIncreases (Just last, count) current
-  | current > last = let count' = count + 1
-                      in seq count' (Just current, count')
-  | otherwise      = (Just current, count)
+numsFromLine :: String -> [Int]
+numsFromLine = map (read . pure) . filter isDigit
 
-countIncreasesSlicker numbers = length . filter (\(x,y) -> x > y) $ zip (drop 1 numbers) numbers
+firstLastNums line = (head $ numsFromLine line) * 10 + (head . reverse $ numsFromLine line)
 
 part1 = do
-  putStrLn =<< show . foldl' countIncreases (Nothing, 0) <$> inputNumbers
-  putStrLn =<< show . countIncreasesSlicker <$> inputNumbers
+  putStrLn =<< show . sum . fmap firstLastNums <$> inputLines
 
-windows numbers = zip3 (drop 2 numbers) (drop 1 numbers) numbers
-windowSums = map (\(a,b,c) -> a + b + c)
+numPrefix :: [(String, Int)] -> String -> [Int]
+numPrefix strints = go
+  where go [] = []
+        go (c:s) = if isDigit c
+                     then (read [c]):(go s)
+                     else (do (prefix, val) <- strints
+                              if prefix `isPrefixOf` (c:s) then pure val else [] 
+                          ) ++ go s
+
+numPrefixBack :: [(String, Int)] -> String -> [Int]
+numPrefixBack strints s = numPrefix ((_1 %~ reverse) <$> strints) (reverse s)
+
+wordmap = [("one",1),("two",2),("three",3),("four",4),("five",5),("six",6),("seven",7),("eight",8),("nine",9)]
+
+firstLastSnums line = (head $ numPrefix wordmap line) * 10 + (head $ numPrefixBack wordmap line)
 
 part2 = do
-  putStrLn =<< show . countIncreasesSlicker . windowSums . windows <$> inputNumbers
+  putStrLn =<< show . sum . fmap firstLastSnums <$> inputLines
 
 day1 Part1 _ = part1
 day1 Part2 _ = part2

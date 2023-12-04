@@ -1,105 +1,111 @@
-module Day5 where
+module Day5 (day5) where
 import Part (Part (Part1, Part2))
 
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.List.Split (splitWhen, wordsBy)
+import Control.Monad
+import Data.List (sort)
+import Debug.Trace
+import Text.Parsec
 
-type Line = ((Int,Int),(Int,Int))
+data RangeSpec = RangeSpec { rangeSourceStart :: Integer, rangeDestinationStart :: Integer, rangeLength :: Integer }
+  deriving (Show, Eq, Ord)
 
-input :: IO [((Int,Int),(Int,Int))]
-input = fmap (parseLine . words) . lines <$> readFile "inputs/day5"
-  where parseLine (a:_:b:[]) = (parsePoint a, parsePoint b)
-        parsePoint point = let [a,b] = splitWhen (== ',') point
-                            in (read a, read b)
+findDest v [] = v
+findDest v (rangeSpec:ranges) | v >= rangeSourceStart rangeSpec && 
+                                v < rangeSourceStart rangeSpec + rangeLength rangeSpec
+                              = rangeDestinationStart rangeSpec + (v - rangeSourceStart rangeSpec)                              | otherwise
+                              = findDest v ranges
 
-horizontalLine ((x0,y0),(x1,y1)) = y0 == y1
-verticalLine ((x0,y0),(x1,y1)) = x0 == x1
+transform almanac f seed = let soil = f seed (seedToSoil almanac)
+                               fertilizer = f soil (soilToFertilizer almanac)
+                               water = f fertilizer (fertilizerToWater almanac)
+                               light = f water (waterToLight almanac)
+                               temperature = f light (lightToTemperature almanac)
+                               humidity = f temperature (temperatureToHumidity almanac)
+                               location = f humidity (humidityToLocation almanac)
+                            in trace (show [seed, soil, fertilizer, water, light, temperature, humidity, location]) location
 
-linePoints ((x0,y0),(x1,y1)) = [(x0 + d * xd, y0 + d * yd) | d <- [0..len]]
-  where xd = if x0 < x1 then 1 else (if x0 == x1 then 0 else -1)
-        yd = if y0 < y1 then 1 else (if y0 == y1 then 0 else -1)
-        len = abs (if x0 == x1 then y1 - y0 else x1 - x0)
-countPoints :: [Line] -> Map (Int,Int) Int
-countPoints = foldr (\l map -> addLinePoints l map) Map.empty
-  where
-    addLinePoints line map = foldr (\p map -> Map.alter increment p map) map (linePoints line)
-    increment Nothing = Just 1
-    increment (Just x) = let n = x + 1 in n `seq` Just n
+data Almanac = Almanac { seedToSoil :: [RangeSpec]
+                       , soilToFertilizer :: [RangeSpec]
+                       , fertilizerToWater :: [RangeSpec]
+                       , waterToLight :: [RangeSpec]
+                       , lightToTemperature :: [RangeSpec]
+                       , temperatureToHumidity :: [RangeSpec]
+                       , humidityToLocation :: [RangeSpec]
+                       }
+  deriving (Show)
 
-part1 = putStrLn =<< show . length . filter (> 1) . Map.elems . countPoints . filter (\l -> horizontalLine l || verticalLine l) <$> input
-part2 = putStrLn =<< show . length . filter (> 1) . Map.elems . countPoints <$> input
+type Parsed = ([Integer], Almanac)
 
-{-
-import Data.Set (Set)
-import qualified Data.Set as Set
+parseSection :: (Monad f) => String -> ParsecT String u f [RangeSpec]
+parseSection header = do void $ string header
+                         void $ string " map:"
+                         void newline
+                         range <- endBy1 (do targetStart <- read <$> many1 digit
+                                             void space
+                                             sourceStart <- read <$> many1 digit
+                                             void space
+                                             length <- read <$> many1 (try digit)
+                                             pure $ RangeSpec { rangeSourceStart = sourceStart
+                                                              , rangeDestinationStart = targetStart
+                                                              , rangeLength = length
+                                                              } 
+                                         )
+                                         newline
+                         void newline <|> eof
+                         pure range
 
-x0 ((n,_),(_,_)) = n
-x1 ((_,_),(n,_)) = n
-y0 ((_,n),(_,_)) = n
-y1 ((_,_),(_,n)) = n
+parseAlmanac = do void $ string "seeds: "
+                  seedNumbers <- fmap read <$> sepBy (many1 digit) (char ' ')
+                  void $ newline
+                  void $ newline
+                  almanac <- Almanac <$> (sort <$> parseSection "seed-to-soil")
+                                     <*> (sort <$> parseSection "soil-to-fertilizer")
+                                     <*> (sort <$> parseSection "fertilizer-to-water")
+                                     <*> (sort <$> parseSection "water-to-light")
+                                     <*> (sort <$> parseSection "light-to-temperature")
+                                     <*> (sort <$> parseSection "temperature-to-humidity")
+                                     <*> (sort <$> parseSection "humidity-to-location")
+                  pure (seedNumbers, almanac)
 
-crossingPoints :: [Line] -> Set (Int,Int)
-crossingPoints [] = Set.empty
-crossingPoints (l:ls) = foldr (\l' set -> addIntersectingPoints l l' set) (crossingPoints ls) ls
-  where
-    addIntersectingPoints a b set
-      | horizontalLine a && verticalLine b 
-          && inRange (x0 b) (x0 a, x1 a)
-          && inRange (y0 a) (y0 b, y1 b) = Set.insert (x0 b, y0 a) set
-      | horizontalLine b && verticalLine a
-          && inRange (x0 a) (x0 b, x1 b)
-          && inRange (y0 b) (y0 a, y1 a) = Set.insert (x0 a, y0 b) set
-      | horizontalLine a && horizontalLine b
-          && y0 a == y0 b                = case overlapping (x0 a, x1 a) (x0 b, x1 b) of
-                                             Just (start, end) -> set <> Set.fromList [(x,y0 a) | x <- [start..end]]
-                                             Nothing -> set
-      | verticalLine a && verticalLine b
-          && x0 a == x0 b                = case overlapping (y0 a, y1 a) (y0 b, y1 b) of
-                                             Just (start, end) -> set <> Set.fromList [(x0 a,y) | y <- [start..end]]
-                                             Nothing -> set
-      | otherwise                   = set
+parseInput :: String -> Parsed
+parseInput = either (error . show) id . runParser parseAlmanac () "none" 
 
-inRange n (start, end) | start < end = n >= start && n <= end
-                       | otherwise   = n >= end && n <= start
+part1 :: Parsed -> IO ()
+part1 (seeds, almanac) = putStrLn . show . sort $ (transform almanac findDest <$> seeds)
 
-overlapping (a0, a1) (b0, b1)
-  | a0 > a1   = overlapping (a1, a0) (b0, b1)
-  | b0 > b1   = overlapping (a0, a1) (b1, b0)
-  | a0 <= b0 && a1 >= b0  = Just (b0, min a1 b1)
-  | a0 >= b0 && a1 <= b1  = Just (a0, min a1 b1)
-  | b0 <= a0 && b1 >= a0  = Just (a0, min a1 b1)
-  | b0 >= a0 && b1 <= a1  = Just (b0, min a1 b1)
-  | otherwise             = Nothing
+pairSeeds [] = []
+pairSeeds (min:len:seeds) = (min,len):(pairSeeds seeds)
 
-part1 = putStrLn =<< show . Set.size . crossingPoints <$> input
+findDestRanges vranges rangeSpecs = concat $ map (`go` rangeSpecs) vranges
+  where go (min,len) [] = [(min,len)]
+        go (min,len) (rs:rss) =
+          let rsSource = rangeSourceStart rs
+              rsDest = rangeDestinationStart rs
+              rsLen = rangeLength rs
+              next | min < rsSource && min + len >= rsSource   = (min,rsSource-min):(go (rsSource,len-(rsSource-min)) (rs:rss))
+                   | min >= rsSource && min < rsSource + rsLen = let offset = min - rsSource
+                                                                     lenHere = rsLen - offset
+                                                                  in if min + len < rsSource + rsLen 
+                                                                       then [(rsDest + (min - rsSource), len)]
+                                                                       else (rsDest + (min - rsSource), lenHere):(go (min + lenHere, len - lenHere) rss)
+                   | otherwise                                 = go (min,len) rss 
+           in next
 
--- |    /
--- | o /
--- |  /
--- | /  v 
--- |/
------------------
+demo rangeSpec range expected = putStrLn $ show rangeSpec ++ show range ++ show (findDestRanges [range] [rangeSpec]) ++ show expected
 
+part2 :: Parsed -> IO ()
+part2 (seeds0, almanac) = do demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (0,5) [(0,5)]
+                             demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (10,2) [(15,2)]
+                             demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (13,2) [(18,2)]
+                             demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (13,3) [(18,2),(15,1)]
+                             demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (10,8) [(15,5),(15,3)]
+                             demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (16,8) [(16,8)]
+                             putStrLn . show . sort $ (transform almanac findDestRanges $ pairSeeds seeds0)
 
-
-crossingPointsDiagonal :: [Line] -> Set (Int,Int)
-crossingPointsDiagonal = crossingPoints . map rotate
-  where
-    rotate (a, b) = (rotatePoint a, rotatePoint b)
-    rotatePoint (x, y) | x == y = (x, 0)
-                       | x < y  = let distanceToNewX = y - x
-                                      pointOnNewX = (x + distanceToNewX, y - distanceToNewX)
-                                   in ( fst pointOnNewX
-                                      , distanceToNewX)
-                       | x > y  = let distanceToNewX = x - y
-                                      pointOnNewX = (x - distanceToNewX, y + distanceToNewX)
-                                   in ( fst pointOnNewX
-                                      , -distanceToNewX)
-
-part2 = putStrLn =<< show . Set.size . (\x -> crossingPoints x <> crossingPointsDiagonal x) <$> input
-
--}
-
-day5 Part1 _ = part1
-day5 Part2 _ = part2
+day5 part args = do let filename = case args of
+                                     [] -> "inputs/day5"
+                                     [f] -> f
+                    inputs <- parseInput <$> readFile filename
+                    case part of
+                      Part1 -> part1 inputs
+                      Part2 -> part2 inputs

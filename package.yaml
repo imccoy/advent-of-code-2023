@@ -1,6 +1,6 @@
-name:                advent-of-code2021
+name:                advent-of-code2023
 version:             0.1.0.0
-github:              "githubuser/advent-of-code2021"
+github:              "githubuser/advent-of-code2023"
 license:             BSD3
 author:              "Author name here"
 maintainer:          "example@example.com"
@@ -29,7 +29,7 @@ dependencies:
 - mtl
 
 executables:
-  advent-of-code2021-exe:
+  advent-of-code2023-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

@@ -1,57 +1,55 @@
 module Day4 (day4) where
 import Part (Part (Part1, Part2))
 
-import Data.List (partition)
-import Data.List.Split (splitWhen, wordsBy)
-import Data.Maybe (fromMaybe)
-import Debug.Trace
+import Control.Monad
+import qualified Data.List as List
+import qualified Data.Map as Map
+import Data.Maybe (fromJust)
+import Text.Parsec
 
-data Board = Board [[Maybe Int]]
-  deriving (Show)
+type Parsed = [(Int, ([Int], [Int]))]
 
-parseBingo :: [String] -> ([Int], [Board])
-parseBingo (numbers:_:rest) = (map read . splitWhen (== ',') $ numbers
-                              ,map parseBoard . splitWhen (== "") $ rest)
-  where parseBoard :: [String] -> Board
-        parseBoard = Board . map (map (Just . read) . wordsBy (== ' '))
+parseGame = do void $ string "Card"
+               void $ spaces
+               n <- read <$> many1 digit
+               void $ char ':'
+               void $ spaces
+               winningNumbers <- manyTill (do n <- many1 digit
+                                              void $ spaces
+                                              pure $ read n
+                                          ) (try (char '|'))
+               void $ spaces
+               yourNumbers <- fmap read <$> sepBy (many1 digit) spaces
+               pure (n, (winningNumbers, yourNumbers))
 
-removeNumber :: Int ->[Board] -> [Board]
-removeNumber n = map (\(Board b) -> Board $ map (map (\x -> if x == Just n then Nothing else x)) b)
+parseInput :: String -> Parsed
+parseInput = fmap parseLine . lines
+parseLine = either (error . show) id . runParser parseGame () "none" 
 
-isWinningBoard :: Board -> Bool
-isWinningBoard (Board cells) = rowWin cells || rowWin (transpose cells)  || diagonalWin cells || diagonalWin (transpose cells)
+scoreCard (_, (winningNumbers, yourNumbers)) = case length $ List.intersect winningNumbers yourNumbers of
+                                                 0 -> 0
+                                                 n -> 2 ^ (n - 1)
 
-rowWin cells = any (all (== Nothing)) cells
+part1 :: Parsed -> IO ()
+part1 = putStrLn . show . sum . map scoreCard
 
-diagonalWin [] = True
-diagonalWin ((Nothing:_):rest) = diagonalWin $ map (drop 1) rest
-diagonalWin (((Just _):_):_) = False
+scoreRecursive :: Map.Map Int Int -> Int -> [(Int,([Int],[Int]))] -> Int
+scoreRecursive _ score [] = score
+scoreRecursive cardCounts score ((number, (winningNumbers, yourNumbers)):rest)
+  = let matches = List.intersect winningNumbers yourNumbers
+        copiesHere = fromJust $ Map.lookup number cardCounts
+        cardsWon = [(number+1)..(number+length matches)]
+        cardCounts' = foldr (\cardNumber counts -> Map.adjust (+ copiesHere) cardNumber counts) cardCounts cardsWon
+     in scoreRecursive cardCounts' (score + (length cardsWon) * copiesHere) rest
 
-transpose (r:rows) = prependToRows r (transpose rows)
-  where
-    prependToRows (c:cs) (col:cols) = (c:col):(prependToRows cs cols)
-    prependToRows r [] = map pure r
-transpose [] = []
+part2 :: Parsed -> IO ()
+part2 input = putStrLn $ show $ scoreRecursive (Map.fromList [(n, 1) | (n,_) <- input]) (length input) input
+               
 
-input :: IO ([Int], [Board])
-input = parseBingo . lines <$> readFile "inputs/day4"
-
-
-findWinners [] _ = []
-findWinners (num:numbers) boards = let boards' = removeNumber num boards
-                                       (winners, stillInPlay) = partition isWinningBoard boards'
-                                    
-                                    in map (\w -> (num,w)) winners ++ findWinners numbers stillInPlay
-
-part1 = do
-  (numbers, boards) <- input
-  let (lastNumberCalled, (Board winningBoard)) = head $ findWinners numbers boards
-  putStrLn . show $ lastNumberCalled * (sum . map (fromMaybe 0) . concat $ winningBoard)
-
-part2 = do
-  (numbers, boards) <- input
-  let (lastNumberCalled, (Board winningBoard)) = head . reverse $ findWinners numbers boards
-  putStrLn . show $ lastNumberCalled * (sum . map (fromMaybe 0) . concat $ winningBoard)
-
-day4 Part1 _ = part1
-day4 Part2 _ = part2
+day4 part args = do let filename = case args of
+                                     [] -> "inputs/day4"
+                                     [f] -> f
+                    inputs <- parseInput <$> readFile filename
+                    case part of
+                      Part1 -> part1 inputs
+                      Part2 -> part2 inputs
