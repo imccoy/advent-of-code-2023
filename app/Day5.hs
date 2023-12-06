@@ -42,7 +42,7 @@ parseSection header = do void $ string header
                                              pure $ RangeSpec { rangeSourceStart = sourceStart
                                                               , rangeDestinationStart = targetStart
                                                               , rangeLength = length
-                                                              } 
+                                                              }
                                          )
                                          newline
                          void newline <|> eof
@@ -50,8 +50,8 @@ parseSection header = do void $ string header
 
 parseAlmanac = do void $ string "seeds: "
                   seedNumbers <- fmap read <$> sepBy (many1 digit) (char ' ')
-                  void $ newline
-                  void $ newline
+                  void newline
+                  void newline
                   almanac <- Almanac <$> (sort <$> parseSection "seed-to-soil")
                                      <*> (sort <$> parseSection "soil-to-fertilizer")
                                      <*> (sort <$> parseSection "fertilizer-to-water")
@@ -62,7 +62,7 @@ parseAlmanac = do void $ string "seeds: "
                   pure (seedNumbers, almanac)
 
 parseInput :: String -> Parsed
-parseInput = either (error . show) id . runParser parseAlmanac () "none" 
+parseInput = either (error . show) id . runParser parseAlmanac () "none"
 
 findDest v [] = v
 findDest v (rangeSpec:ranges) | v >= rangeSourceStart rangeSpec &&
@@ -74,24 +74,24 @@ findDest v (rangeSpec:ranges) | v >= rangeSourceStart rangeSpec &&
 
 
 part1 :: Parsed -> IO ()
-part1 (seeds, almanac) = putStrLn . show . sort $ (transform almanac findDest <$> seeds)
+part1 (seeds, almanac) = print . sort $ (transform almanac findDest <$> seeds)
 
 pairSeeds [] = []
-pairSeeds (min:len:seeds) = (min,len):(pairSeeds seeds)
+pairSeeds (min:len:seeds) = (min,len):pairSeeds seeds
 
-findDestRanges vranges rangeSpecs = concat $ map (`go` rangeSpecs) vranges
+findDestRanges vranges rangeSpecs = concatMap (`go` rangeSpecs) vranges
   where go (min,len) [] = [(min,len)]
         go (min,len) (rs:rss) =
           let rsSource = rangeSourceStart rs
               rsDest = rangeDestinationStart rs
               rsLen = rangeLength rs
-              next | min < rsSource && min + len >= rsSource   = (min,rsSource-min):(go (rsSource,len-(rsSource-min)) (rs:rss))
+              next | min < rsSource && min + len >= rsSource   = (min,rsSource-min):go (rsSource,len-(rsSource-min)) (rs:rss)
                    | min >= rsSource && min < rsSource + rsLen = let offset = min - rsSource
                                                                      lenHere = rsLen - offset
-                                                                  in if min + len < rsSource + rsLen 
+                                                                  in if min + len < rsSource + rsLen
                                                                        then [(rsDest + (min - rsSource), len)]
-                                                                       else (rsDest + (min - rsSource), lenHere):(go (min + lenHere, len - lenHere) rss)
-                   | otherwise                                 = go (min,len) rss 
+                                                                       else (rsDest + (min - rsSource), lenHere):go (min + lenHere, len - lenHere) rss
+                   | otherwise                                 = go (min,len) rss
            in next
 
 demo rangeSpec range expected = putStrLn $ show rangeSpec ++ show range ++ show (findDestRanges [range] [rangeSpec]) ++ show expected
@@ -103,7 +103,7 @@ part2 (seeds0, almanac) = do demo (RangeSpec { rangeSourceStart = 10, rangeDesti
                              demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (13,3) [(18,2),(15,1)]
                              demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (10,8) [(15,5),(15,3)]
                              demo (RangeSpec { rangeSourceStart = 10, rangeDestinationStart = 15, rangeLength = 5 }) (16,8) [(16,8)]
-                             putStrLn . show . sort $ (transform almanac findDestRanges $ pairSeeds seeds0)
+                             print . sort . transform almanac findDestRanges $ pairSeeds seeds0
 
 day5 part args = do let filename = case args of
                                      [] -> "inputs/day5"
