@@ -9,12 +9,6 @@ import Text.Parsec
 data RangeSpec = RangeSpec { rangeSourceStart :: Integer, rangeDestinationStart :: Integer, rangeLength :: Integer }
   deriving (Show, Eq, Ord)
 
-findDest v [] = v
-findDest v (rangeSpec:ranges) | v >= rangeSourceStart rangeSpec && 
-                                v < rangeSourceStart rangeSpec + rangeLength rangeSpec
-                              = rangeDestinationStart rangeSpec + (v - rangeSourceStart rangeSpec)                              | otherwise
-                              = findDest v ranges
-
 transform almanac f seed = let soil = f seed (seedToSoil almanac)
                                fertilizer = f soil (soilToFertilizer almanac)
                                water = f fertilizer (fertilizerToWater almanac)
@@ -69,6 +63,15 @@ parseAlmanac = do void $ string "seeds: "
 
 parseInput :: String -> Parsed
 parseInput = either (error . show) id . runParser parseAlmanac () "none" 
+
+findDest v [] = v
+findDest v (rangeSpec:ranges) | v >= rangeSourceStart rangeSpec &&
+                                v < rangeSourceStart rangeSpec + rangeLength rangeSpec
+                              = rangeDestinationStart rangeSpec + (v - rangeSourceStart rangeSpec)
+                              | otherwise
+                              = findDest v ranges
+
+
 
 part1 :: Parsed -> IO ()
 part1 (seeds, almanac) = putStrLn . show . sort $ (transform almanac findDest <$> seeds)
