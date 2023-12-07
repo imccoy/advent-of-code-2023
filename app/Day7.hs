@@ -42,12 +42,9 @@ parseInput = either (error . show) id . runParser parseGame () "none"
 data Strength = HighCard | OnePair | TwoPair | ThreeOfAKind | FullHouse | FourOfAKind | FiveOfAKind
   deriving (Eq, Show, Ord)
 
-organised o [] = reverse $ sort o
-organised [] (r:rs) = organised [(1,r)] rs
-organised ((c,o):os) (r:rs) | o == r = organised ((c+1,o):os) rs
-                            | otherwise = organised ((1,r):(c,o):os) rs
+organised o = reverse . sort $ [(length g, g) | g <- group $ sort o]
 
-strength cards = go (organised [] $ sort cards)
+strength cards = go (organised cards)
   where go ((5,_):_) = FiveOfAKind
         go ((4,_):_) = FourOfAKind
         go ((3,_):(2,_):_) = FullHouse
