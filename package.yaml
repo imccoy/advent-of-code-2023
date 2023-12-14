@@ -27,6 +27,7 @@ dependencies:
 - vector
 - parsec
 - mtl
+- zippers
 
 executables:
   advent-of-code2023-exe:

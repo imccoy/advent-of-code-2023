@@ -29,6 +29,7 @@ executable advent-of-code2023-exe
       Day10
       Day11
       Day12
+      Day13
       Day2
       Day3
       Day4
@@ -50,4 +51,5 @@ executable advent-of-code2023-exe
     , parsec
     , split
     , vector
+    , zippers
   default-language: Haskell2010
