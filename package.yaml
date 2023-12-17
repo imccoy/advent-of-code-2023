@@ -28,6 +28,7 @@ dependencies:
 - parsec
 - mtl
 - zippers
+- array
 
 executables:
   advent-of-code2023-exe:
