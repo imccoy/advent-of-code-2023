@@ -37,6 +37,9 @@ executable advent-of-code2023-exe
       Day18
       Day19
       Day2
+      Day20
+      Day21
+      Day22
       Day3
       Day4
       Day5
@@ -54,6 +57,7 @@ executable advent-of-code2023-exe
       array
     , base >=4.7 && <5
     , containers
+    , heap
     , lens
     , mtl
     , parsec

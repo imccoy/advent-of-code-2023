@@ -24,6 +24,7 @@ dependencies:
 - containers
 - lens
 - split
+- heap
 - vector
 - parsec
 - mtl
