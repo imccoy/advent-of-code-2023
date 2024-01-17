@@ -14,6 +14,11 @@ import Debug.Trace (trace)
 import Control.Monad (unless)
 import Data.Foldable (foldrM)
 import Data.List (sort)
+import qualified Data.GraphViz.Types.Graph as GraphViz
+import qualified Data.Text.Lazy as T
+import Data.GraphViz.Attributes.Complete (Attribute(Label), Label(StrLabel))
+import Data.GraphViz (printDotGraph)
+import qualified Data.Set as Set
 
 type Parsed = [Module]
 
@@ -40,6 +45,17 @@ parseMachine = manyTill parseModule (void newline <|> eof)
 
 parseInput :: String -> Parsed
 parseInput = either (error . show) id . runParser parseMachine () "none"
+
+toDotVizGraph gr = let nodeNumbers :: Map.Map String Int
+                       nodeNumbers = Map.fromList $ zip (Map.keys gr) [0..]
+                    in GraphViz.mkGraph [GraphViz.DotNode number [Label $ StrLabel . T.pack $ show (moduleType mod) ++ ": " ++ name]
+                                        | (name,number) <- Map.toList nodeNumbers
+                                        , let Just mod = Map.lookup name gr
+                                        ]
+                                        [GraphViz.DotEdge (fromJust $ Map.lookup a nodeNumbers) (fromJust $ Map.lookup b nodeNumbers) []
+                                        | (a,Module _ _ recip) <- Map.toList gr, b <- recip
+                                        ]
+
 
 machineMap = Map.insert "rx" (Module Broadcaster "rx" []) . Map.fromList . map (\m -> (moduleName m, m))
 
@@ -152,9 +168,9 @@ hitButtonMany n = do (_,sigs) <- hitButton
                        do let n' = n + 1
                           n' `seq` hitButtonMany n'
 
-hitButtonManyMany = do (_,pulses) <- hitButton
+hitButtonManyMany = do (sts,pulses) <- hitButton
                        next <- hitButtonManyMany
-                       pure $ pulses:next
+                       pure $ (sts,pulses):next
 
 
 part1 :: Parsed -> IO ()
@@ -165,74 +181,69 @@ part1 mods0 = do let mods = machineMap mods0
                                                       ) (mods,0,0,initialStates mods,[])
                  print (low,high,low*high)
 
-data Loop = Loop { loopDuration :: Integer, loopPulses :: [(Integer, Pulse)] }
-  deriving (Show)
 
-{-
-findPattern :: Map.Map String Module -> Map.Map String States -> Map.Map String Loop -> String -> Loop
-findPattern mods states patternsIn here = let mod = fromJust $ Map.lookup here mods
-                                              initialState = fromJust $ Map.lookup here states
-                                              duration = foldr gcd 0 . fmap (loopDuration . fromJust . (`Map.lookup` patternsIn) . moduleName) . moduleInputs mods $ mod
-                                              inPulses = [ [(loopDuration loop * c + t, inputName, p) | c <- [0..], (t,p) <- loopPulses loop]
-                                                         | inputName <- moduleName <$> moduleInputs mods mod
-                                                         , let loop = fromJust . Map.lookup inputName $ patternsIn
-                                                         ]
-                                              allPulses :: [[(Integer,String,Pulse)]] -> [(Integer,String,Pulse)]
-                                              allPulses ps = let (p,others) = findMin (head ps) (tail ps) []
-                                                              in p:allPulses others
+assignSections :: Map.Map String Module -> Map.Map String [Int]
+assignSections gr = let initials = zip (moduleRecipients $ fromJust $ Map.lookup "broadcaster" gr) (pure <$> [1..])
+                     in go (Set.fromList $ map fst initials) (Map.fromList initials)
+  where go :: Set.Set String -> Map.Map String [Int] -> Map.Map String [Int]
+        go q sections = case Set.minView q of
+                          Nothing -> sections
+                          Just (name, q') -> let hereSections = fromJust $ Map.lookup name sections
+                                                 nexts = [(next, needed) |
+                                                            next <- moduleRecipients $ fromJust $ Map.lookup name gr,
+                                                            let nextSections = fromMaybe [] $ Map.lookup next sections,
+                                                            let needed = filter (`notElem` nextSections) hereSections,
+                                                            not $ null needed]
+                                              in go (Set.union (Set.fromList $ fst <$> nexts) q')
+                                                    (Map.unionWith (++) sections (Map.fromList nexts))
 
-                                              findMin :: [(Integer,String,Pulse)] -> [[(Integer,String,Pulse)]] -> [[(Integer,String,Pulse)]] -> ((Integer,String,Pulse),[[(Integer,String,Pulse)]])
-                                              findMin (pMin:psMins) [] ps = (pMin, psMins:ps)
-                                              findMin pMin@((t,_,_):psMin) (pHere@((tHere,_,_):_):ps) ps'
-                                                | tHere < t = findMin pHere ps (pMin:ps')
-                                                | otherwise = findMin pMin ps (pHere:ps')
-
-                                              threshold dur ((tNow,_,_):(tNext,_,_):_) = (dur > tNow && dur < tNext, if tNext > dur then dur + duration else dur)
-                                              go s0 dur s (p:ps) = let (s', ps') = go1 s p
-                                                                       (onThreshold, nextDuration) = threshold dur (p:ps)
-                                                                       (finalDuration, finalSignals) = if onThreshold && s' == s0 then (dur, ps') else go s0 nextDuration s' ps
-                                                                    in (finalDuration, ps' ++ finalSignals)
-                                              go1 s (t,source,pulse) = case moduleType mod of
-                                                                         FlipFlop -> if pulse == High
-                                                                                       then (s,[])
-                                                                                       else (FlipFlopState (not $ flipFlopOn s), [(t,if flipFlopOn s then Low else High)])
-                                                                         Conj -> let s' = Map.insert source pulse (remembered s)
-                                                                                  in (ConjunctionState s',[(t, if all (==High) . Map.elems $ s' then Low else High)])
-
-                                           in uncurry Loop $ go initialState duration initialState $ allPulses inPulses
-
-mkPatterns mods = let patterns = Map.fromList [(moduleName mod, findPattern mods (initialStates mods) patterns (moduleName mod)) | mod <- Map.elems mods]
-                   in patterns
--}
-
+sectionGraphs :: Map.Map String Module -> Map.Map String [Int] -> [Map.Map String Module]
+sectionGraphs gr sections = [sectionGraph n | n <- allSectionNumbers]
+  where allSectionNumbers = Set.toList . Set.fromList . concat . Map.elems $ sections
+        sectionGraph n = let gr' = Map.filterWithKey (\k _ -> k == "broadcaster" || Map.lookup k sections == Just [n]) gr
+                          in Map.map (\mod -> mod { moduleRecipients = filter (`Map.member` gr') (moduleRecipients mod) }) gr'
 
 part2 :: Parsed -> IO ()
-part2 mods0 = do error "nope!!!!"
-                 let mods = machineMap mods0
-                 let (sts,_) = runState hitButtonManyMany (mods,0,0,initialStates mods,[])
+part2 mods0 = do let mods = machineMap mods0
+                 writeFile "20.dot" (T.unpack $ printDotGraph (toDotVizGraph mods))
+                 -- it turns out the machine has this structure where there's a bunch of
+                 -- sections, each of which flows into an penultimate node that then goes into rx
+                 let sections = assignSections mods
+                 forM_ [1..10] $ \section ->
+                   forM_ (Map.toList sections) $ \(name,sectionNumbers) ->
+                     when (section `elem` sectionNumbers) $ print (name,sectionNumbers)
 
-                 forM_ (Map.elems mods) $ \mod -> do
-                   putStr $ if moduleName mod == "broadcaster" then "BC   " else moduleName mod ++ "   "
-                 putStrLn ""
-                 forM_ (zip [1..] $ take 100 sts) $ \(n, sigs) -> do
-                   forM_ (Map.elems mods) $ \mod -> do
-                     let modSigs = [pulse | (mod',pulse) <- sigs, mod' == mod]
-                     let highs = length (filter (==High) modSigs)
-                     let lows = length (filter (==Low) modSigs)
-                     let s = (if highs == 0 then "  " else show highs ++ "H") ++ (if lows == 0 then "  " else show lows ++ "L")
-                     putStr $ s ++ " "
-                   print n
-                 --  
-                 putStrLn ""
-                 --forM (Map.elems mods) $ \mod -> do
-                 --  putStrLn $ moduleName mod ++ " -> " ++ show (moduleRecipients mod) ++ "[<- " ++ show (fmap moduleName $ moduleInputs mods mod) ++ "]"
-                 --  forM sts' $ \(st,sigs) -> do
-                 --    putStrLn $ "  " ++ show (fromJust $ Map.lookup (moduleName mod) st) ++ " " ++ show [pulse | (mod', pulse) <- sigs, mod' == mod]
-                 --  
-                 --print . snd . head $ sts
+                 let rxInputs = moduleInputs mods $ fromJust $ Map.lookup "rx" mods
+                 let rx1Inputs = concatMap (moduleInputs mods) rxInputs
+                 print rx1Inputs
+                 ts <- forM (sectionGraphs mods sections) $ \sectionMods -> do
+                         let (sts,_) = runState hitButtonManyMany (sectionMods,0,0,initialStates sectionMods,[])
+                         let (n,n',_,pulses) = findStateLoop sts
+                         print (n, n', [p | rx1Input <- rx1Inputs, p <- fromMaybe [] $ Map.lookup (moduleName rx1Input) pulses])
+                         pure n
+                 -- it turns out that the penultimate nodes that go into rx all loop within about
+                 -- 4000 iterations, and they'll send a high signal immediately before their state
+                 -- returns to the initial state, and they'll send a low signal on every other button
+                 -- press. That means we can do this:
 
-                 --let patterns = mkPatterns mods
-                 --print $ Map.lookup "ft" patterns
+                 print $ foldr (lcm . (+ (-1))) 1 ts
+
+
+findStateLoop :: [(Map.Map String States, [(Module, Pulse)])] -> (Int,Int,Map.Map (Map.Map String States) Int, Map.Map String [(Int,Pulse)])
+findStateLoop = go Map.empty Map.empty 1
+  where go sts pss n ((st,ps):stspss)
+          = case Map.lookup st sts of
+              Just n' -> (n, n', sts, pss)
+              Nothing -> go (Map.insert st n sts)
+                            (Map.unionWith (++)
+                                           (Map.unionsWith
+                                              (++)
+                                              [Map.singleton (moduleName m) [(n,p)]
+                                              |(m,p) <- ps
+                                              ])
+                                           pss)
+                            (n+1)
+                            stspss
 
 
 day20 part args = do let filename = case args of

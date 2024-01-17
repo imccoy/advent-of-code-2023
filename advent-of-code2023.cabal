@@ -59,11 +59,13 @@ executable advent-of-code2023-exe
       array
     , base >=4.7 && <5
     , containers
+    , graphviz
     , heap
     , lens
     , mtl
     , parsec
     , split
+    , text
     , vector
     , zippers
   default-language: Haskell2010

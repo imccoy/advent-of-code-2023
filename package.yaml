@@ -30,6 +30,8 @@ dependencies:
 - mtl
 - zippers
 - array
+- graphviz
+- text
 
 executables:
   advent-of-code2023-exe:
